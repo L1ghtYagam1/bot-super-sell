@@ -3,4 +3,5 @@
 *.egg-info/
 .venv/
 .env
+chat_settings.json
 .git/
