@@ -225,29 +225,29 @@ def format_config(cfg: SearchConfig) -> str:
 HELP_TEXT = """Команды:
 /start - запуск бота
 /help - справка
-/set key=value ... - сохранить параметры поиска для этого чата
-/show - показать сохраненные параметры
-/clear - сбросить сохраненные параметры
-/find [key=value ...] - поиск кланов
+/ustanovit key=value ... - сохранить параметры поиска для этого чата
+/pokazat - показать сохраненные параметры
+/sbros - сбросить сохраненные параметры
+/poisk [key=value ...] - поиск кланов
 
 Примеры:
-/set name=fire min_members=30 min_clan_level=10 tag_length=9 limit=10
-/find
-/find name=ice limit=5
+/ustanovit name=fire min_members=30 min_clan_level=10 tag_length=9 limit=10
+/poisk
+/poisk name=ice limit=5
 
 Параметры:
 name, limit, min_members, max_members, min_clan_points, min_clan_level,
 location_id, war_frequency, label_ids, before, after, tag_length
 
 Ограничение:
-/find не чаще 1 раза в минуту, максимум 15 кланов за запрос.
+/poisk не чаще 1 раза в минуту, максимум 15 кланов за запрос.
 """
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await update.message.reply_text(
-            "Бот запущен. Используй /find для поиска кланов Clash of Clans.\n\n" + HELP_TEXT
+            "Бот запущен. Используй /poisk для поиска кланов Clash of Clans.\n\n" + HELP_TEXT
         )
 
 
@@ -343,6 +343,10 @@ def main() -> None:
     app.add_handler(CommandHandler("show", show_cmd))
     app.add_handler(CommandHandler("clear", clear_cmd))
     app.add_handler(CommandHandler("find", find_cmd))
+    app.add_handler(CommandHandler("ustanovit", set_cmd))
+    app.add_handler(CommandHandler("pokazat", show_cmd))
+    app.add_handler(CommandHandler("sbros", clear_cmd))
+    app.add_handler(CommandHandler("poisk", find_cmd))
     app.run_polling(drop_pending_updates=True)
 
 
