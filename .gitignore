@@ -5,3 +5,6 @@
 .env
 chat_settings.json
 .git/
+
+chat_cursors.json
+

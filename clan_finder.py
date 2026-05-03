@@ -22,6 +22,7 @@ MAX_LIMIT = 15
 SETTINGS_PATH = Path("chat_settings.json")
 MAX_SCAN_PAGES = 10
 API_PAGE_LIMIT = 50
+CURSORS_PATH = Path("chat_cursors.json")
 
 
 @dataclass
@@ -202,6 +203,7 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
 def fetch_clans(api_token: str, cfg: SearchConfig) -> List[Dict[str, Any]]:
     headers = {"Authorization": f"Bearer {api_token}"}
     collected: List[Dict[str, Any]] = []
+    seen_tags = set()
     next_after: Optional[str] = cfg.after
 
     for _ in range(MAX_SCAN_PAGES):
@@ -223,7 +225,13 @@ def fetch_clans(api_token: str, cfg: SearchConfig) -> List[Dict[str, Any]]:
         items = data.get("items", [])
         if cfg.tag_length is not None:
             items = [clan for clan in items if len(clan.get("tag", "")) == cfg.tag_length]
-        collected.extend(items)
+        for item in items:
+            tag = item.get("tag")
+            if tag and tag in seen_tags:
+                continue
+            if tag:
+                seen_tags.add(tag)
+            collected.append(item)
 
         if len(collected) >= cfg.limit:
             break
@@ -237,6 +245,80 @@ def fetch_clans(api_token: str, cfg: SearchConfig) -> List[Dict[str, Any]]:
             break
 
     return collected[: cfg.limit]
+
+
+def load_chat_cursors() -> Dict[str, str]:
+    if not CURSORS_PATH.exists():
+        return {}
+    try:
+        with open(CURSORS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return {str(k): str(v) for k, v in data.items() if v}
+    except Exception:
+        pass
+    return {}
+
+
+def save_chat_cursors(data: Dict[str, str]) -> None:
+    with open(CURSORS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def get_chat_cursor(chat_id: int) -> Optional[str]:
+    return load_chat_cursors().get(str(chat_id))
+
+
+def set_chat_cursor(chat_id: int, cursor: Optional[str]) -> None:
+    data = load_chat_cursors()
+    key = str(chat_id)
+    if cursor:
+        data[key] = cursor
+    elif key in data:
+        del data[key]
+    save_chat_cursors(data)
+
+
+def fetch_clans_with_next_cursor(
+    api_token: str, cfg: SearchConfig
+) -> tuple[List[Dict[str, Any]], Optional[str]]:
+    headers = {"Authorization": f"Bearer {api_token}"}
+    collected: List[Dict[str, Any]] = []
+    seen_tags = set()
+    next_after: Optional[str] = cfg.after
+
+    for _ in range(MAX_SCAN_PAGES):
+        page_cfg = SearchConfig(**asdict(cfg))
+        page_cfg.after = next_after
+        response = requests.get(
+            f"{API_BASE}/clans", headers=headers, params=build_params(page_cfg), timeout=20
+        )
+        if response.status_code >= 400:
+            try:
+                api_error = response.json()
+            except ValueError:
+                api_error = {"message": response.text}
+            reason = api_error.get("reason", "")
+            message = api_error.get("message", "")
+            raise RuntimeError(f"API {response.status_code}: {reason} {message}".strip())
+
+        data = response.json()
+        items = data.get("items", [])
+        if cfg.tag_length is not None:
+            items = [clan for clan in items if len(clan.get("tag", "")) == cfg.tag_length]
+        for item in items:
+            tag = item.get("tag")
+            if tag and tag in seen_tags:
+                continue
+            if tag:
+                seen_tags.add(tag)
+            collected.append(item)
+
+        next_after = data.get("paging", {}).get("cursors", {}).get("after")
+        if len(collected) >= cfg.limit or not next_after:
+            break
+
+    return collected[: cfg.limit], next_after
 
 
 def format_clan(c: Dict[str, Any]) -> str:
@@ -291,6 +373,7 @@ def clear_chat_default_config(chat_id: int) -> None:
     if str(chat_id) in settings:
         del settings[str(chat_id)]
         save_chat_settings(settings)
+    set_chat_cursor(chat_id, None)
 
 
 def format_config(cfg: SearchConfig) -> str:
@@ -403,8 +486,11 @@ async def run_find(update: Update, context: ContextTypes.DEFAULT_TYPE, override_
         args = override_args if override_args is not None else context.args
         one_time_cfg = parse_find_args(args)
         cfg = normalize_config(merge_configs(saved_cfg, one_time_cfg))
+        if cfg.after is None:
+            cfg.after = get_chat_cursor(chat.id)
         api_token = require_env("COC_API_TOKEN")
-        clans = fetch_clans(api_token, cfg)
+        clans, next_cursor = fetch_clans_with_next_cursor(api_token, cfg)
+        set_chat_cursor(chat.id, next_cursor)
     except Exception as exc:
         await message.reply_text(f"Ошибка: {exc}")
         return
