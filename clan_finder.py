@@ -35,6 +35,7 @@ class SearchConfig:
     min_clan_level: Optional[int] = None
     location_id: Optional[int] = None
     war_frequency: Optional[str] = None
+    clan_type: Optional[str] = None
     label_ids: Optional[str] = None
     before: Optional[str] = None
     after: Optional[str] = None
@@ -53,6 +54,7 @@ INT_FIELDS = {
 STR_FIELDS = {
     "name": "name",
     "war_frequency": "war_frequency",
+    "clan_type": "clan_type",
     "label_ids": "label_ids",
     "before": "before",
     "after": "after",
@@ -67,6 +69,7 @@ FIELD_LABELS = {
     "min_clan_level": "Мин. уровень",
     "location_id": "Location ID",
     "war_frequency": "Частота войн",
+    "clan_type": "Тип клана",
     "label_ids": "Label IDs",
     "before": "Курсор before",
     "after": "Курсор after",
@@ -156,6 +159,24 @@ def normalize_config(cfg: SearchConfig) -> SearchConfig:
         cfg.min_clan_points = 0
     if cfg.tag_length is not None and cfg.tag_length < 2:
         cfg.tag_length = 2
+    if cfg.clan_type:
+        normalized = cfg.clan_type.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+        aliases = {
+            "open": "open",
+            "opened": "open",
+            "otkrytyi": "open",
+            "otkrytyy": "open",
+            "открытый": "open",
+            "closed": "closed",
+            "zakrytyi": "closed",
+            "zakrytyy": "closed",
+            "закрытый": "closed",
+            "inviteonly": "inviteOnly",
+            "invite": "inviteOnly",
+            "popriglasheniyu": "inviteOnly",
+            "поприглашению": "inviteOnly",
+        }
+        cfg.clan_type = aliases.get(normalized, cfg.clan_type)
 
     return cfg
 
@@ -176,6 +197,8 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
         params["locationId"] = cfg.location_id
     if cfg.war_frequency:
         params["warFrequency"] = cfg.war_frequency
+    if cfg.clan_type:
+        params["type"] = cfg.clan_type
     if cfg.label_ids:
         params["labelIds"] = cfg.label_ids
     if cfg.before:
@@ -192,6 +215,7 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
             cfg.min_clan_level is not None,
             cfg.location_id is not None,
             cfg.war_frequency,
+            cfg.clan_type,
             cfg.label_ids,
         ]
     )
@@ -416,6 +440,7 @@ HELP_TEXT = """Команды:
 
 Примеры:
 /ustanovit name=fire min_members=30 min_clan_level=10 tag_length=9 limit=10
+/ustanovit clan_type=inviteOnly
 /poisk
 /poisk name=ice limit=5
 

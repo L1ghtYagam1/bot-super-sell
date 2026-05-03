@@ -68,6 +68,7 @@ docker compose down
 - `min_clan_level`
 - `location_id`
 - `war_frequency` (`always`, `moreThanOncePerWeek`, `oncePerWeek`, `never`, `unknown`)
+- `clan_type` (`open`, `closed`, `inviteOnly`)
 - `label_ids` (CSV id меток, например `56000000,56000001`)
 - `before` (cursor для пагинации API)
 - `after` (cursor для пагинации API)
@@ -77,5 +78,6 @@ docker compose down
 Поля автоматически валидируются (например, `min_members` не ниже `2`).
 Если не задан ни один серверный фильтр API, бот автоматически подставляет `min_members=2`.
 Бот просматривает до 10 страниц API и возвращает первые подходящие результаты по твоим фильтрам. При повторном /poisk продолжает с следующей страницы (без повторов); сбросить прогресс можно через /sbros.
+Для `clan_type` можно вводить и по-русски: `открытый`, `закрытый`, `по приглашению`.
 
 
