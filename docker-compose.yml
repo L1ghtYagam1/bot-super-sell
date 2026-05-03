@@ -1,0 +1,16 @@
+﻿services:
+  bot:
+    build:
+      context: .
+    container_name: coc-clan-finder
+    env_file:
+      - .env
+    command:
+      - --name
+      - fire
+      - --min-members
+      - "30"
+      - --min-clan-level
+      - "10"
+      - --tag-length
+      - "9"
