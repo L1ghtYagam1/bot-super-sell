@@ -217,7 +217,6 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
             cfg.min_clan_level is not None,
             cfg.location_id is not None,
             cfg.war_frequency,
-            cfg.clan_type,
             cfg.label_ids,
         ]
     )
