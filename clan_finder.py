@@ -20,6 +20,8 @@ from telegram.ext import (
 API_BASE = "https://api.clashofclans.com/v1"
 MAX_LIMIT = 15
 SETTINGS_PATH = Path("chat_settings.json")
+MAX_SCAN_PAGES = 10
+API_PAGE_LIMIT = 50
 
 
 @dataclass
@@ -158,7 +160,7 @@ def normalize_config(cfg: SearchConfig) -> SearchConfig:
 
 
 def build_params(cfg: SearchConfig) -> Dict[str, Any]:
-    params: Dict[str, Any] = {"limit": max(1, min(cfg.limit, MAX_LIMIT))}
+    params: Dict[str, Any] = {"limit": API_PAGE_LIMIT}
     if cfg.name:
         params["name"] = cfg.name
     if cfg.min_members is not None:
@@ -187,22 +189,42 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
 
 def fetch_clans(api_token: str, cfg: SearchConfig) -> List[Dict[str, Any]]:
     headers = {"Authorization": f"Bearer {api_token}"}
-    response = requests.get(
-        f"{API_BASE}/clans", headers=headers, params=build_params(cfg), timeout=20
-    )
-    if response.status_code >= 400:
-        try:
-            api_error = response.json()
-        except ValueError:
-            api_error = {"message": response.text}
-        reason = api_error.get("reason", "")
-        message = api_error.get("message", "")
-        raise RuntimeError(f"API {response.status_code}: {reason} {message}".strip())
+    collected: List[Dict[str, Any]] = []
+    next_after: Optional[str] = cfg.after
 
-    items = response.json().get("items", [])
-    if cfg.tag_length is not None:
-        items = [clan for clan in items if len(clan.get("tag", "")) == cfg.tag_length]
-    return items
+    for _ in range(MAX_SCAN_PAGES):
+        page_cfg = SearchConfig(**asdict(cfg))
+        page_cfg.after = next_after
+        response = requests.get(
+            f"{API_BASE}/clans", headers=headers, params=build_params(page_cfg), timeout=20
+        )
+        if response.status_code >= 400:
+            try:
+                api_error = response.json()
+            except ValueError:
+                api_error = {"message": response.text}
+            reason = api_error.get("reason", "")
+            message = api_error.get("message", "")
+            raise RuntimeError(f"API {response.status_code}: {reason} {message}".strip())
+
+        data = response.json()
+        items = data.get("items", [])
+        if cfg.tag_length is not None:
+            items = [clan for clan in items if len(clan.get("tag", "")) == cfg.tag_length]
+        collected.extend(items)
+
+        if len(collected) >= cfg.limit:
+            break
+
+        next_after = (
+            data.get("paging", {})
+            .get("cursors", {})
+            .get("after")
+        )
+        if not next_after:
+            break
+
+    return collected[: cfg.limit]
 
 
 def format_clan(c: Dict[str, Any]) -> str:
