@@ -136,6 +136,30 @@ def merge_configs(base: SearchConfig, override: SearchConfig) -> SearchConfig:
     return merged
 
 
+def normalize_config(cfg: SearchConfig) -> SearchConfig:
+    cfg.limit = max(1, min(cfg.limit, MAX_LIMIT))
+
+    if cfg.min_members is not None and cfg.min_members < 2:
+        cfg.min_members = 2
+    if cfg.max_members is not None and cfg.max_members < 2:
+        cfg.max_members = 2
+    if (
+        cfg.min_members is not None
+        and cfg.max_members is not None
+        and cfg.min_members > cfg.max_members
+    ):
+        cfg.max_members = cfg.min_members
+
+    if cfg.min_clan_level is not None and cfg.min_clan_level < 1:
+        cfg.min_clan_level = 1
+    if cfg.min_clan_points is not None and cfg.min_clan_points < 0:
+        cfg.min_clan_points = 0
+    if cfg.tag_length is not None and cfg.tag_length < 2:
+        cfg.tag_length = 2
+
+    return cfg
+
+
 def build_params(cfg: SearchConfig) -> Dict[str, Any]:
     params: Dict[str, Any] = {"limit": max(1, min(cfg.limit, MAX_LIMIT))}
     if cfg.name:
@@ -222,6 +246,7 @@ def get_chat_default_config(chat_id: int) -> SearchConfig:
 
 
 def set_chat_default_config(chat_id: int, cfg: SearchConfig) -> None:
+    cfg = normalize_config(cfg)
     settings = load_chat_settings()
     settings[str(chat_id)] = asdict(cfg)
     save_chat_settings(settings)
@@ -235,6 +260,7 @@ def clear_chat_default_config(chat_id: int) -> None:
 
 
 def format_config(cfg: SearchConfig) -> str:
+    cfg = normalize_config(cfg)
     data = asdict(cfg)
     lines = ["Текущие параметры:"]
     for k in ALL_FIELDS:
@@ -349,7 +375,7 @@ async def run_find(update: Update, context: ContextTypes.DEFAULT_TYPE, override_
         saved_cfg = get_chat_default_config(chat.id)
         args = override_args if override_args is not None else context.args
         one_time_cfg = parse_find_args(args)
-        cfg = merge_configs(saved_cfg, one_time_cfg)
+        cfg = normalize_config(merge_configs(saved_cfg, one_time_cfg))
         api_token = require_env("COC_API_TOKEN")
         clans = fetch_clans(api_token, cfg)
     except Exception as exc:
@@ -431,7 +457,7 @@ async def text_input_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             setattr(cfg, pending_field, value_raw)
 
-        cfg.limit = max(1, min(cfg.limit, MAX_LIMIT))
+        cfg = normalize_config(cfg)
         set_chat_default_config(update.effective_chat.id, cfg)
         await update.message.reply_text(
             f"Параметр {pending_field} обновлен.\n" + format_config(cfg),
