@@ -1,7 +1,6 @@
 ﻿import json
 import logging
 import os
-import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -20,9 +19,7 @@ from telegram.ext import (
 
 API_BASE = "https://api.clashofclans.com/v1"
 MAX_LIMIT = 15
-FIND_COOLDOWN_SECONDS = 60
 SETTINGS_PATH = Path("chat_settings.json")
-LAST_FIND_TS_BY_CHAT: Dict[int, float] = {}
 
 
 @dataclass
@@ -183,7 +180,6 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
     if cfg.after:
         params["after"] = cfg.after
 
-    # Clash API requires at least one server-side filter. tag_length is local-only.
     if len(params) == 1 and "limit" in params:
         params["minMembers"] = 2
     return params
@@ -307,7 +303,7 @@ HELP_TEXT = """Команды:
 /poisk name=ice limit=5
 
 Ограничение:
-/poisk не чаще 1 раза в минуту, максимум 15 кланов за запрос.
+максимум 15 кланов за запрос.
 """
 
 
@@ -368,13 +364,6 @@ async def run_find(update: Update, context: ContextTypes.DEFAULT_TYPE, override_
     if chat is None or message is None:
         return
 
-    now = time.time()
-    last_ts = LAST_FIND_TS_BY_CHAT.get(chat.id, 0.0)
-    remaining = int(FIND_COOLDOWN_SECONDS - (now - last_ts))
-    if remaining > 0:
-        await message.reply_text(f"Подожди {remaining} сек. Лимит: 15 кланов в минуту.")
-        return
-
     try:
         saved_cfg = get_chat_default_config(chat.id)
         args = override_args if override_args is not None else context.args
@@ -385,8 +374,6 @@ async def run_find(update: Update, context: ContextTypes.DEFAULT_TYPE, override_
     except Exception as exc:
         await message.reply_text(f"Ошибка: {exc}")
         return
-
-    LAST_FIND_TS_BY_CHAT[chat.id] = now
 
     if not clans:
         await message.reply_text("Кланы не найдены по заданным фильтрам.")
