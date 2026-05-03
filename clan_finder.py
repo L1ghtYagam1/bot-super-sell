@@ -182,6 +182,10 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
         params["before"] = cfg.before
     if cfg.after:
         params["after"] = cfg.after
+
+    # Clash API requires at least one server-side filter. tag_length is local-only.
+    if len(params) == 1 and "limit" in params:
+        params["minMembers"] = 2
     return params
 
 
