@@ -182,7 +182,19 @@ def build_params(cfg: SearchConfig) -> Dict[str, Any]:
     if cfg.after:
         params["after"] = cfg.after
 
-    if len(params) == 1 and "limit" in params:
+    has_real_filter = any(
+        [
+            cfg.name,
+            cfg.min_members is not None,
+            cfg.max_members is not None,
+            cfg.min_clan_points is not None,
+            cfg.min_clan_level is not None,
+            cfg.location_id is not None,
+            cfg.war_frequency,
+            cfg.label_ids,
+        ]
+    )
+    if not has_real_filter:
         params["minMembers"] = 2
     return params
 
