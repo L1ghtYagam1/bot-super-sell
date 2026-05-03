@@ -1,66 +1,66 @@
-﻿# Clash of Clans Clan Finder
+﻿# Clash of Clans Telegram Bot
 
-Бот для поиска кланов через Clash of Clans API с фильтрами, включая фильтр по длине тега.
+Telegram-бот для поиска кланов Clash of Clans через официальный API.
 
-## Локальный запуск
+## Что умеет
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+- Команда `/find` с фильтрами поиска
+- Фильтр по длине тега (`tag_length`)
+- Лимит поиска: 15 кланов в минуту
+- Запуск в Docker Compose
 
-### Токен API
+## `.env` файл
 
-Получи токен на [developer.clashofclans.com](https://developer.clashofclans.com).
-
-Вариант 1 (переменная окружения):
-
-```powershell
-setx COC_API_TOKEN "ТВОЙ_ТОКЕН"
-```
-
-Вариант 2 (`.env` рядом со скриптом):
+Создай `.env` рядом с `docker-compose.yml`:
 
 ```env
-COC_API_TOKEN=ТВОЙ_ТОКЕН
+TELEGRAM_BOT_TOKEN=ТВОЙ_TELEGRAM_BOT_TOKEN
+COC_API_TOKEN=ТВОЙ_COC_API_TOKEN
 ```
 
-## Docker
-
-### Запуск через docker compose up -d
-
-1. Создай `.env` с токеном.
-2. При необходимости поменяй фильтры в `docker-compose.yml` -> `services.bot.command`.
-3. Запусти:
+## Запуск
 
 ```powershell
 docker compose up -d --build
 ```
 
-Логи:
+Проверка логов:
 
 ```powershell
 docker compose logs -f bot
 ```
 
-Остановка и удаление контейнера:
+Остановка:
 
 ```powershell
 docker compose down
 ```
 
-## Доступные фильтры
+## Команды в Telegram
 
-- `--name`
-- `--limit` (1..50)
-- `--min-members`
-- `--max-members`
-- `--min-clan-points`
-- `--min-clan-level`
-- `--location-id`
-- `--war-frequency` (`always`, `moreThanOncePerWeek`, `oncePerWeek`, `never`, `unknown`)
-- `--label-ids` (CSV id меток, например `56000000,56000001`)
-- `--before` (cursor для пагинации API)
-- `--after` (cursor для пагинации API)
-- `--tag-length` (точная длина тега, включая `#`)
+- `/start`
+- `/help`
+- `/find key=value ...`
+
+Пример:
+
+```text
+/find name=fire min_members=30 min_clan_level=10 tag_length=9 limit=10
+```
+
+## Доступные параметры `/find`
+
+- `name`
+- `limit` (1..15)
+- `min_members`
+- `max_members`
+- `min_clan_points`
+- `min_clan_level`
+- `location_id`
+- `war_frequency` (`always`, `moreThanOncePerWeek`, `oncePerWeek`, `never`, `unknown`)
+- `label_ids` (CSV id меток, например `56000000,56000001`)
+- `before` (cursor для пагинации API)
+- `after` (cursor для пагинации API)
+- `tag_length` (точная длина тега, включая `#`)
+
+Примечание: фактический максимум сейчас 15 результатов за запрос (`/find`) и 1 запрос в минуту на чат.
