@@ -23,6 +23,8 @@ SETTINGS_PATH = Path("chat_settings.json")
 MAX_SCAN_PAGES = 10
 API_PAGE_LIMIT = 50
 CURSORS_PATH = Path("chat_cursors.json")
+END_CURSOR = "__END__"
+SEEN_TAGS_PATH = Path("chat_seen_tags.json")
 
 
 @dataclass
@@ -284,6 +286,49 @@ def load_chat_cursors() -> Dict[str, str]:
     return {}
 
 
+def load_seen_tags() -> Dict[str, List[str]]:
+    if not SEEN_TAGS_PATH.exists():
+        return {}
+    try:
+        with open(SEEN_TAGS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return {
+                str(k): [str(x) for x in v if x]
+                for k, v in data.items()
+                if isinstance(v, list)
+            }
+    except Exception:
+        pass
+    return {}
+
+
+def save_seen_tags(data: Dict[str, List[str]]) -> None:
+    with open(SEEN_TAGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def get_chat_seen_tags(chat_id: int) -> set[str]:
+    return set(load_seen_tags().get(str(chat_id), []))
+
+
+def add_chat_seen_tags(chat_id: int, tags: List[str]) -> None:
+    data = load_seen_tags()
+    key = str(chat_id)
+    existing = set(data.get(key, []))
+    existing.update([t for t in tags if t])
+    data[key] = sorted(existing)
+    save_seen_tags(data)
+
+
+def clear_chat_seen_tags(chat_id: int) -> None:
+    data = load_seen_tags()
+    key = str(chat_id)
+    if key in data:
+        del data[key]
+        save_seen_tags(data)
+
+
 def save_chat_cursors(data: Dict[str, str]) -> None:
     with open(CURSORS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -296,7 +341,7 @@ def get_chat_cursor(chat_id: int) -> Optional[str]:
 def set_chat_cursor(chat_id: int, cursor: Optional[str]) -> None:
     data = load_chat_cursors()
     key = str(chat_id)
-    if cursor:
+    if cursor is not None:
         data[key] = cursor
     elif key in data:
         del data[key]
@@ -398,6 +443,7 @@ def clear_chat_default_config(chat_id: int) -> None:
         del settings[str(chat_id)]
         save_chat_settings(settings)
     set_chat_cursor(chat_id, None)
+    clear_chat_seen_tags(chat_id)
 
 
 def format_config(cfg: SearchConfig) -> str:
@@ -512,10 +558,17 @@ async def run_find(update: Update, context: ContextTypes.DEFAULT_TYPE, override_
         one_time_cfg = parse_find_args(args)
         cfg = normalize_config(merge_configs(saved_cfg, one_time_cfg))
         if cfg.after is None:
-            cfg.after = get_chat_cursor(chat.id)
+            stored_cursor = get_chat_cursor(chat.id)
+            if stored_cursor == END_CURSOR:
+                await message.reply_text("Новых кланов по этим фильтрам больше нет. Нажми Сброс (/sbros), чтобы начать сначала.")
+                return
+            cfg.after = stored_cursor
         api_token = require_env("COC_API_TOKEN")
         clans, next_cursor = fetch_clans_with_next_cursor(api_token, cfg)
-        set_chat_cursor(chat.id, next_cursor)
+        seen_tags = get_chat_seen_tags(chat.id)
+        clans = [c for c in clans if c.get("tag") not in seen_tags]
+        add_chat_seen_tags(chat.id, [c.get("tag", "") for c in clans])
+        set_chat_cursor(chat.id, next_cursor if next_cursor else END_CURSOR)
     except Exception as exc:
         await message.reply_text(f"Ошибка: {exc}")
         return
